@@ -583,7 +583,7 @@ def _maxbad(p, raw, bad_file):
                           % tuple(1000 * origin))
             del origin
         output, err, code = run_sss_command(
-            raw, opts + frame_opts, None, throw_error=False, **kwargs)[0]
+            raw, opts + frame_opts, None, throw_error=False, **kwargs)
         if code != 0:
             if 'origin is outside of the helmet' in output[1] and \
                     'head' in frame_opts:
