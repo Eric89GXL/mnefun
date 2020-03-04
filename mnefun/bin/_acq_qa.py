@@ -39,7 +39,7 @@ def acq_qa():
     full_paths = [os.path.join(os.getcwd(), path) for path in args.path]
 
     # Logging
-    level = parser.level
+    level = args.level
     assert level.count(',') == 1, level
     logger.setLevel(getattr(logging, level[0].upper()))
     log_dir = op.expanduser('~/log')
