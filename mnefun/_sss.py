@@ -315,6 +315,16 @@ def _read_raw_prebad(p, subj, fname, disp=True, prefix=' ' * 6):
     return raw
 
 
+def _get_origin(p, raw):
+    if p.sss_origin == 'auto':
+        R, origin = fit_sphere_to_headshape(
+            raw.info, verbose=False, units='m')[:2]
+        kind, extra = 'automatic', ' R=%0.1f' % (1000 * R,)
+    else:
+        kind, extra, origin = 'manual', '', p.sss_origin
+    return origin, kind, extra
+
+
 def run_sss_locally(p, subjects, run_indices):
     """Run SSS locally using maxwell filter in python
 
@@ -365,15 +375,11 @@ def run_sss_locally(p, subjects, run_indices):
                 raise NameError('File not found (' + r + ')')
             raw = _read_raw_prebad(p, subj, r, disp=ii == 0).load_data()
             if ii == 0:
-                if p.sss_origin == 'auto':
-                    R, origin = fit_sphere_to_headshape(
-                        raw.info, verbose=False, units='m')[:2]
-                    kind, extra = 'automatic', ' R=%0.1f' % (1000 * R,)
-                else:
-                    kind, extra, origin = 'manual', '', p.sss_origin
+                origin, kind, extra = _get_origin(p, raw)
                 print('      Using %s origin=[%0.1f, %0.1f, %0.1f]%s mm' %
                       ((kind,) + tuple(1000 * np.array(origin, float)) +
                        (extra,)))
+                del kind, extra
             print('      Processing %s ...' % op.basename(r))
 
             # For the empty room files, mimic the necessary components
@@ -557,9 +563,29 @@ def _maxbad(p, raw, bad_file):
             if len(bads) > 0:
                 opts += ' -bad %s' % (' '.join(bads))
         # print(' (using %s)' % (opts,))
-        output = run_sss_command(raw, opts, None, host=p.sws_ssh,
-                                 work_dir=p.sws_dir, port=p.sws_port,
-                                 prefix=' ' * 10, verbose='error')[0]
+        kwargs = dict(
+            host=p.sws_ssh, work_dir=p.sws_dir, port=p.sws_port,
+            prefix=' ' * 10, verbose='error')
+        if raw.info['dev_head_t'] is None:
+            frame_opts = ' -frame device -origin 0 0 0'
+        else:
+            origin, _, _ = _get_origin(p, raw)
+            frame_opts = (' -frame head -origin %0.1f %0.1f %0.1f'
+                          % tuple(1000 * origin))
+            del origin
+        try:
+            output = run_sss_command(
+                raw, opts + frame_opts, None, **kwargs)[0]
+        except subprocess.CalledProcessError as exp:
+            if 'origin is outside of the helmet' in str(exp) and \
+                    'head' in frame_opts:
+                warnings.warn('Head origin was outside the helmet, re-running '
+                              'with device origin')
+                frame_opts = ' -frame device -origin 0 0 0'
+                output = run_sss_command(
+                    raw, opts + frame_opts, None, **kwargs)[0]
+            else:
+                raise
         output = output.splitlines()
         # Parse output for bad channels
         bads = set()
