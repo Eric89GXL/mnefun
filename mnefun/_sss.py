@@ -70,7 +70,7 @@ def run_sss(p, subjects, run_indices):
 def run_sss_command(fname_in, options, fname_out, host='kasga', port=22,
                     fname_pos=None, stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE, prefix='', work_dir='~/',
-                    verbose=None):
+                    throw_error=True, verbose=None):
     """Run Maxfilter remotely and fetch resulting file.
 
     Parameters
@@ -94,6 +94,9 @@ def run_sss_command(fname_in, options, fname_out, host='kasga', port=22,
         The text to prefix to messages.
     work_dir : str
         Where to store the temporary files.
+    throw_error : bool
+        If True, throw an error if the command fails. If False,
+        return anyway, including the code.
 
     Returns
     -------
@@ -101,6 +104,8 @@ def run_sss_command(fname_in, options, fname_out, host='kasga', port=22,
         The standard output of the ``maxfilter`` call.
     stderr : str
         The standard error of the ``maxfilter`` call.
+    code : int
+        Only returned if throw_error=False.
     """
     if not isinstance(host, str):
         raise ValueError('host must be a string, got %r' % (host,))
@@ -162,23 +167,27 @@ def run_sss_command(fname_in, options, fname_out, host='kasga', port=22,
     files += [remote_pos] if fname_pos is not None else []
     if files:
         print(', cleaning', end='')
-        cmd = ['ssh', '-p', port, host, 'rm -f ' + ' '.join(files)]
+        clean_cmd = ['ssh', '-p', port, host, 'rm -f ' + ' '.join(files)]
         try:
             run_subprocess(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                clean_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except Exception:
             pass
     # now throw an error
     if code != 0:
-        print(output)
         if 'maxfilter: command not' in output[1]:
+            print(output)
             raise RuntimeError(
                 '\nMaxFilter could not be run on the remote machine, '
                 'consider adding the following line to your ~/.bashrc on '
                 'the remote machine:\n\n'
                 'export PATH=${PATH}:/neuro/bin/util:/neuro/bin/X11\n')
-        raise subprocess.CalledProcessError(code, cmd)
+        if throw_error:
+            print(output)
+            raise subprocess.CalledProcessError(code, cmd)
     print(' (%i sec)' % (time.time() - t0,))
+    if not throw_error:
+        output = output + (code,)
     return output
 
 
@@ -573,11 +582,10 @@ def _maxbad(p, raw, bad_file):
             frame_opts = (' -frame head -origin %0.1f %0.1f %0.1f'
                           % tuple(1000 * origin))
             del origin
-        try:
-            output = run_sss_command(
-                raw, opts + frame_opts, None, **kwargs)[0]
-        except subprocess.CalledProcessError as exp:
-            if 'origin is outside of the helmet' in str(exp) and \
+        output, err, code = run_sss_command(
+            raw, opts + frame_opts, None, throw_error=False, **kwargs)[0]
+        if code != 0:
+            if 'origin is outside of the helmet' in output[1] and \
                     'head' in frame_opts:
                 warnings.warn('Head origin was outside the helmet, re-running '
                               'with device origin')
@@ -585,7 +593,9 @@ def _maxbad(p, raw, bad_file):
                 output = run_sss_command(
                     raw, opts + frame_opts, None, **kwargs)[0]
             else:
-                raise
+                raise RuntimeError(
+                    'Maxbad failed (%d):\nSTDOUT:\n\n%s\n\nSTDERR:\n%s'
+                    % (output[2], output[:2]))
         output = output.splitlines()
         # Parse output for bad channels
         bads = set()
