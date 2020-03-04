@@ -41,15 +41,16 @@ def acq_qa():
     # Logging
     level = args.level
     assert level.count(',') == 1, level
-    logger.setLevel(getattr(logging, level[0].upper()))
+    level = level.split(',')
+    logger.setLevel(logging.DEBUG)
     log_dir = op.expanduser('~/log')
     os.makedirs(log_dir, exist_ok=True)
     log_fname = op.join(
         log_dir, 'acq_qa_%s.log' % (datetime.now().isoformat(),))
     ch = logging.StreamHandler()
-    ch.setLevel(getattr(logging, level[1].upper()))
+    ch.setLevel(getattr(logging, level[0].upper()))
     fh = logging.FileHandler(log_fname)
-    fh.setLevel(logging.INFO)
+    fh.setLevel(getattr(logging, level[1].upper()))
     exclude = args.exclude.split(',')
     formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s')
     for h in (ch, fh):
