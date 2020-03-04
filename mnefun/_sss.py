@@ -582,21 +582,21 @@ def _maxbad(p, raw, bad_file):
             frame_opts = (' -frame head -origin %0.1f %0.1f %0.1f'
                           % tuple(1000 * origin))
             del origin
-        output, err, code = run_sss_command(
+        stdout, err, code = run_sss_command(
             raw, opts + frame_opts, None, throw_error=False, **kwargs)
         if code != 0:
-            if 'origin is outside of the helmet' in output[1] and \
-                    'head' in frame_opts:
+            if 'outside of the helmet' in err and 'head' in frame_opts:
                 warnings.warn('Head origin was outside the helmet, re-running '
-                              'with device origin')
+                              'using device origin')
                 frame_opts = ' -frame device -origin 0 0 0'
-                output = run_sss_command(
-                    raw, opts + frame_opts, None, **kwargs)[0]
+                stdout, err = run_sss_command(
+                    raw, opts + frame_opts, None, **kwargs)
             else:
                 raise RuntimeError(
                     'Maxbad failed (%d):\nSTDOUT:\n\n%s\n\nSTDERR:\n%s'
-                    % (output[2], output[:2]))
-        output = output.splitlines()
+                    % (code, stdout, err))
+        output = stdout.splitlines()
+        del stdout, err, code
         # Parse output for bad channels
         bads = set()
         for line in output:

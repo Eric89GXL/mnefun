@@ -31,18 +31,23 @@ def acq_qa():
     parser.add_argument('--quit', '-q', dest='quit_on_error',
                         action="store_true", help="Quit on error",
                         default=False)
+    parser.add_argument('--level', '-l', dest='level', default='DEBUG,INFO',
+                        help='Comma-separated levels to use for the console '
+                        'stream and log file')
     args = parser.parse_args()
     write_root = op.abspath(op.expanduser(args.write_root))
     full_paths = [os.path.join(os.getcwd(), path) for path in args.path]
 
     # Logging
-    logger.setLevel(logging.DEBUG)
+    level = parser.level
+    assert level.count(',') == 1, level
+    logger.setLevel(getattr(logging, level[0].upper())
     log_dir = op.expanduser('~/log')
     os.makedirs(log_dir, exist_ok=True)
     log_fname = op.join(
         log_dir, 'acq_qa_%s.log' % (datetime.now().isoformat(),))
     ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    ch.setLevel(getattr(logging, level[1].upper())
     fh = logging.FileHandler(log_fname)
     fh.setLevel(logging.INFO)
     exclude = args.exclude.split(',')
