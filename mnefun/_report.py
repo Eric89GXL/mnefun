@@ -664,8 +664,14 @@ def gen_html_report(p, subjects, structurals, run_indices=None):
                                     % (section, analysis, name, evo.nave))
                         fig = evo.plot_white(noise_cov, verbose='error',
                                              **time_kwargs)
+                        fig_butterfly = evo.plot(
+                            verbose='error', noise_cov=noise_cov,
+                            **time_kwargs)
+                        figs = [fig, fig_butterfly]
+                        captions = [captions] * 2
                         report.add_figs_to_section(
-                            fig, captions, section=section, image_format='png')
+                            figs, captions, section=section,
+                            image_format='png')
                 print('%5.1f sec' % ((time.time() - t0),))
             else:
                 print('    %s skipped' % section)
